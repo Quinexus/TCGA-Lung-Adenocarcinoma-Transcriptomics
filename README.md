@@ -57,6 +57,10 @@ A large number of genes were found to be significantly differentially expressed 
 | **EPAS1** | -2.72          | 1.17 × 10⁻¹²⁸        | Downregulated; related to hypoxia signaling  |
 | **OTUD1** | -2.11          | 2.14 × 10⁻¹⁴⁷        | Potential tumor suppressor                   |
 
+### Heatmap
+
+![heatmap](./heatmap.png)
+
 ## Conclusion
 
 The analysis shows key genes that are significantly dysregulated in TCGA-LUAD Tumour samples compared to normal tissues.
