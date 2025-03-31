@@ -9,7 +9,7 @@ This repository presents and exploratory and differential gene expression analys
 
 **Total Genes analysed**
 
-- 50,000 genes
+- 60,659 genes
 
 ## Selection of Data
 
