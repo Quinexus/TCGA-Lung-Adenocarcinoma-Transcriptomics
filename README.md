@@ -38,14 +38,14 @@ A large number of genes were found to be significantly differentially expressed 
 - Significance was determined based on:
   - Adjusted p-value < 0.05
   - |log2 Fold Change| > 1.5
-- Upregulated Genes in Tumor (examples):
-  - FAM83A (log2FC ≈ 6.79)
-  - AFAP1-AS1 (log2FC ≈ 6.31)
-  - PYCR1 (log2FC ≈ 3.68)
-- Downregulated Genes in Tumor (examples):
-  - EPAS1 (log2FC ≈ -2.72)
-  - OTUD1 (log2FC ≈ -2.11)
-  - STX11 (log2FC ≈ -3.06)
+- Upregulated Genes in Tumour:
+  - FAM83A (log2FC = 6.79)
+  - AFAP1-AS1 (log2FC = 6.31)
+  - PYCR1 (log2FC = 3.68)
+- Downregulated Genes in Tumour:
+  - EPAS1 (log2FC = -2.72)
+  - OTUD1 (log2FC = -2.11)
+  - STX11 (log2FC = -3.06)
 
 ### DESeq2 Results Table
 
