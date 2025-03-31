@@ -1,0 +1,180 @@
+---
+title: "TCGA-LUAD Analysis"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r}
+if (!require("BiocManager")) install.packages("BiocManager")
+if (!require("tidyverse")) install.packages("tidyverse")
+
+bioc_install_if_missing <- function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    BiocManager::install(pkg)
+  }
+}
+
+bioc_install_if_missing("GenomicDataCommons")
+bioc_install_if_missing("DESeq2")
+bioc_install_if_missing("pheatmap")
+bioc_install_if_missing("EnhancedVolcano")
+
+library(tidyverse)
+library(GenomicDataCommons)
+library(DESeq2)
+library(pheatmap)
+library(EnhancedVolcano)
+```
+
+Load in the manifest data and download the files
+
+```{r}
+normal_manifest <- files() %>% 
+  GenomicDataCommons::filter(cases.project.project_id == 'TCGA-LUAD') %>%
+  GenomicDataCommons::filter(type == 'gene_expression') %>%
+  GenomicDataCommons::filter(access == 'open') %>%
+  GenomicDataCommons::filter(cases.samples.tissue_type == 'normal') %>%
+  manifest()
+dim(normal_manifest)
+
+tumour_manifest <- files() %>% 
+  GenomicDataCommons::filter(cases.project.project_id == 'TCGA-LUAD') %>%
+  GenomicDataCommons::filter(type == 'gene_expression') %>%
+  GenomicDataCommons::filter(access == 'open') %>%
+  GenomicDataCommons::filter(cases.samples.tissue_type == 'tumor') %>%
+  manifest()
+dim(tumour_manifest)
+
+
+normal_files <- lapply(normal_manifest$id, gdcdata)
+tumour_files <- lapply(tumour_manifest$id, gdcdata)
+```
+
+Reading in files
+
+```{r}
+read_expr <- function(file){
+   header <- read.table(file, sep="\t", header=FALSE, skip=1, nrows=1)
+   data <- read.table(file, sep="\t", header=FALSE, skip=7)
+   colnames(data) <- unlist(header)
+   return(data)
+}
+
+normal_data <- lapply(normal_files, read_expr)
+tumour_data <- lapply(tumour_files, read_expr)
+```
+
+Merging Data
+
+```{r}
+extract_counts <- function(df, sample_name) {
+  df %>%
+    dplyr::select(gene_id, gene_name, unstranded) %>%
+    dplyr::rename(!!sample_name := unstranded)
+}
+
+# Create counts table for normal samples
+normal_counts_list <- lapply(seq_along(normal_data), function(i) {
+  extract_counts(normal_data[[i]], paste0("Normal_", i))
+})
+normal_counts <- purrr::reduce(normal_counts_list, full_join, by = c("gene_id", "gene_name"))
+normal_counts[is.na(normal_counts)] <- 0
+
+# Create counts table for tumor samples
+tumour_counts_list <- lapply(seq_along(tumour_data), function(i) {
+  extract_counts(tumour_data[[i]], paste0("Tumor_", i))
+})
+tumour_counts <- purrr::reduce(tumour_counts_list, full_join, by = c("gene_id", "gene_name"))
+tumour_counts[is.na(tumour_counts)] <- 0
+```
+
+DE Prep
+
+```{r}
+# Combine
+combined_counts <- full_join(normal_counts, tumour_counts, by = c("gene_id", "gene_name"))
+combined_counts[is.na(combined_counts)] <- 0
+
+# Use gene_name as rownames
+rownames(combined_counts) <- make.unique(combined_counts$gene_name)
+count_matrix <- combined_counts %>% dplyr::select(-gene_id, -gene_name)
+
+sample_names <- colnames(count_matrix)
+condition <- ifelse(str_detect(sample_names, "Normal"), "Normal", "Tumor")
+colData <- data.frame(
+  row.names = sample_names,
+  condition = factor(condition)
+)
+
+```
+
+
+Differential Expression Analysis
+
+```{r}
+dds <- DESeq2::DESeqDataSetFromMatrix(countData = count_matrix, colData = colData, design = ~ condition)
+
+# Pre-filter low count genes
+dds <- dds[rowSums(BiocGenerics::counts(dds)) > 10, ]
+
+# Run DESeq2
+dds <- DESeq2::DESeq(dds)
+res <- DESeq2::results(dds)
+
+# View summary
+summary(res)
+
+# Save DE results
+resOrdered <- res[order(res$padj), ]
+as.data.frame(resOrdered)
+```
+
+
+Visualization
+
+PCA Plots 
+
+```{r}
+vsd <- DESeq2::vst(dds, blind=FALSE)
+DESeq2::plotPCA(vsd, intgroup="condition")
+```
+
+Volcano Plot
+
+```{r include=FALSE}
+jpeg('EV.jpg')
+EnhancedVolcano::EnhancedVolcano(res,
+    lab = rownames(res),
+    x = 'log2FoldChange',
+    y = 'pvalue',
+    title = 'TCGA-LUAD Tumor vs Normal',
+    pCutoff = 0.05,
+    FCcutoff = 1.5
+)
+dev.off()
+topGenes <- head(order(res$padj), 30)
+pheatmap::pheatmap(SummarizedExperiment::assay(vsd)[topGenes, ], cluster_rows=TRUE, show_rownames=TRUE, show_colnames = FALSE, cluster_cols=TRUE, annotation_col=colData, filename = "./heatmap.png")
+```
+
+```{r}
+EnhancedVolcano::EnhancedVolcano(res,
+    lab = rownames(res),
+    x = 'log2FoldChange',
+    y = 'pvalue',
+    title = 'TCGA-LUAD Tumor vs Normal',
+    pCutoff = 0.05,
+    FCcutoff = 1.5
+)
+```
+
+Heatmap
+
+```{r}
+topGenes <- head(order(res$padj), 30)
+pheatmap::pheatmap(SummarizedExperiment::assay(vsd)[topGenes, ], cluster_rows=TRUE, show_rownames=TRUE, show_colnames = FALSE, cluster_cols=TRUE, annotation_col=colData)
+```
+
+
+
+
